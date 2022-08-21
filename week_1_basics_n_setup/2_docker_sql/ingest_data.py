@@ -3,6 +3,8 @@
 
 import os
 import argparse
+import gzip
+import shutil
 
 from time import time
 
@@ -17,14 +19,18 @@ def main(params):
     port = params.port 
     db = params.db
     table_name = params.table_name
-    url = params.url
-    csv_name = 'output.csv'
+    url_taxi_rides = params.url_taxi_rides
+    url_zone_lookup = params.url_zone_lookup
+    taxi_rides_csv_name = 'output.csv'
+    zone_lookup_csv_name = 'lookup.csv'
 
-    os.system(f"wget {url} -O {csv_name}")
+    os.system(f"wget {url_taxi_rides} -O {taxi_rides_csv_name}.gz")
+    with gzip.open(f'{taxi_rides_csv_name}.gz', 'r') as f_in, open(f'{taxi_rides_csv_name}', 'wb') as f_out:
+        shutil.copyfileobj(f_in, f_out)
 
     engine = create_engine(f'postgresql://{user}:{password}@{host}:{port}/{db}')
 
-    df_iter = pd.read_csv(csv_name, iterator=True, chunksize=100000)
+    df_iter = pd.read_csv(taxi_rides_csv_name, iterator=True, chunksize=100000)
 
     df = next(df_iter)
 
@@ -55,6 +61,12 @@ def main(params):
         except StopIteration:
             print("Finished ingesting data into the postgres database")
             break
+    
+    # ingest location lookup table
+    os.system(f"wget {url_zone_lookup} -O {zone_lookup_csv_name}")
+    df_lookup = pd.read_csv(zone_lookup_csv_name)
+    df_lookup.to_sql(name='zones', con=engine, if_exists='replace')
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Ingest CSV data to Postgres')
@@ -65,7 +77,8 @@ if __name__ == '__main__':
     parser.add_argument('--port', required=True, help='port for postgres')
     parser.add_argument('--db', required=True, help='database name for postgres')
     parser.add_argument('--table_name', required=True, help='name of the table where we will write the results to')
-    parser.add_argument('--url', required=True, help='url of the csv file')
+    parser.add_argument('--url_taxi_rides', required=True, help='url of the csv file containing taxi rides')
+    parser.add_argument('--url_zone_lookup', required=True, help='url of the csv file containing the zone lookup table')
 
     args = parser.parse_args()
 

@@ -1,5 +1,5 @@
 locals {
-  data_lake_bucket = "dtc_data_lake"
+  data_lake_bucket = "data_engineering_project_data_lake"
 }
 
 variable "project" {
